@@ -1,0 +1,105 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Lightening</title>
+    <link rel="icon" href="http://129.211.28.16:8002/head.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="http://129.211.28.16:8002/head.ico" type="image/x-icon" />
+    <style type="text/css"> #margin {margin-left: 6%; margin-right: 6%;} </style>
+    <style type="text/css"> #margin_pic {margin-left: 15%; margin-right: 15%;} </style>
+</head>
+<body>
+    <center>
+        <a href="http://129.211.28.16:8002/">Home</a> 
+        |
+        <a href="http://129.211.28.16:8002/serverInfo.html">ServerInfo</a> 
+        |
+        <a href="http://129.211.28.16:8002/drawing.html">Drawing</a> 
+        |
+        <a href="https://github.com/lzw-all-in">Github</a>
+        |
+        <a href="https://www.linkedin.com/in/%E6%99%BA%E6%96%87-%E7%BD%97-242b14159/">Linkedin</a>
+
+        <h1 style="text-align:center">Lightening Server</h1>
+    
+    </center>
+
+    <p id="margin"> Hello, my vistors ~ This is a description about 
+        how I build the web server just use C++11 features. My purpose is not to build a complicated one. In fact, 
+        I wanna build a simple but fully functional web server. The message below is the detailed information 
+        about the implementation of my server "Lightening". </p>
+    
+    <h2 id="margin"> Enviroment </h2>
+    <p id="margin"> OS: Ubuntu 16.04.6 LTS <br> Complier: g++ 5.4.0
+    </p> 
+    <br>
+
+    <h2 id="margin">Version 1.0</h2>
+
+    <h3 id="margin">1. HTTP parser module</h3>
+    <p id="margin">In my Web Server, It support GET, HEAD, POST method and http1.1 long connection. I use state machine to parse the http requests, 
+        The header parsing process is shown in the figure blow. But this picture just is a sketch.
+        The real parsing path will be more complicated.</p>
+    <img src="http://129.211.28.16:8002/Lightening_img/http_header_parser.png"; height="500"; width="750"; id = "margin_pic">  </img>
+
+    <h3 id="margin">2. ThreadPool module </h3>
+    <p id="margin">When the Web Server start up, it will create some threads as consumers in ThreadPool and
+        the main thread as the producer. I use condition variable to control synchronization between producer and consumers. 
+        Every time when a request come in, the producer will generate a task 
+        and put it in the tail of "task list" meanwhile release a condition variable. Hence if there are threads wait 
+        for the condition variable, the thread in the head of "wait list" will be wake up and take out a task from the "task list".
+        Why ThreadPool rather than create one thread for one request ? The answer is we wanna reduce the overhead of creating and destroying threads. 
+    </p>
+    <img src="http://129.211.28.16:8002/Lightening_img/threadpool.png"; height="500"; width="750"; id = "margin_pic">  </img>
+
+    <h3 id="margin">3. IO multiplex </h3>
+    <p id="margin"> Why I use IO multiplex ? Because we need to listen on multiple sockets. I use epoll not select or poll due to the time complexity
+        and other optimizations in epoll. All the sockets I set to non-blocking mode. For the listen socket I set to LT mode and for others I set to ET
+        mode in epoll. The most important flag in epoll is ONESHOT. It avoid several threads serve the same connection simultaneously.
+    </p>
+
+    <h3 id="margin">4. Reactor pattern module </h3>
+    <p id="margin">Acutlly ThreadPool is a part of the Reactor pattern. The Reactor pattern means we have one main thread using multiplex IO to listen to new coming events 
+        and old requests. Every time if a new event come in we register a read event in multiplex IO and if old events 
+        come in we just dispatch them to the handler. In our situation the handler is a thread in ThreadPool.
+    </p>
+    <img src="http://129.211.28.16:8002/Lightening_img/reactor.png"; height="500"; width="750"; id = "margin_pic">  </img>
+
+    <h3 id="margin">5. Min-heap based timer module</h3>
+    <p id="margin"> Why I use timer ? Because in http1.1 we have the long connection option, thus we need to delete some timeout requests and we
+        have to remove the request that connected but no data sent for a long time. Use a min heap can delete the most early timer and adjust it just 
+        in O(logN) time complexity and add a timer just in O(1) time complexity. Note: We don't need to check the heap in a for loop to see whether 
+        there is a invalid event or not.
+    </p>
+    <br> 
+    <h2 id="margin">Problems and Solutions</h2>
+    <h3 id="margin">1. Segmentation fault when sending a picture</h3>
+    <p id="margin">This because I allocate stack memory to file buffer and the stack memory have a limitation around 1Mbytes->2Mbytes. If we
+        want to allocate a bigger space, we should use dynamic allocations.</p>
+
+    <h3 id="margin">2. Request picture failure</h3>
+    <p id="margin"> This situation might happen when there are many visitors access my website. When WebServer finish others' tasks, 
+        your request already timeout and then WebServer will delete it. </p>
+
+    <h3 id="margin">3. Website icon don't refresh</h3>
+    <p id="margin">Sometimes I change the icon of my webpage in Server and want to see whether it works or not. But the web browser always present the previous one.
+        This because Google web browser don't request the icon everytime. When it accesses a webpage at the first time, it will request for the icon and store it locally.
+    When it accesses the webpage at multiply times it won't to request for the icon unless you clean up the cache. </p>
+    
+
+    <center>
+        <br>
+        <a href="http://129.211.28.16:8002/">Home</a> 
+        |
+        <a href="http://129.211.28.16:8002/serverInfo.html">ServerInfo</a> 
+        |
+        <a href="http://129.211.28.16:8002/drawing.html">Drawing</a> 
+        |
+        <a href="https://github.com/lzw-all-in">Github</a>
+        |
+        <a href="https://www.linkedin.com/in/%E6%99%BA%E6%96%87-%E7%BD%97-242b14159/">Linkedin</a>
+
+    </center>
+</body>
+</html>
