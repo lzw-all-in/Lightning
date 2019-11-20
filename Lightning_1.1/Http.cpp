@@ -1,15 +1,17 @@
 #include "Http.h"
 
 Http::Http(std::string& root): _state(HTTP_PARSE_STATE::start), _root(root), 
-_keep_alive(false), _data(nullptr), _n_left(0), _fd(-1)
+_keep_alive(false), _data(nullptr), _origin_data(nullptr), _n_left(0), _fd(-1)
 {  
 }
 
 Http::~Http()
 {
-    if (_data != nullptr) {
-        free(_data);
+    printf("data free\n");
+    if (_origin_data != nullptr) {
+        free(_origin_data);
     }
+
 }
 
 pthread_mutex_t Http::timer_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -291,7 +293,8 @@ void Http::_clear_state() {
         _query.clear();
         _version.clear();
         _keep_alive = false;
-        _data = nullptr;
+        free(_origin_data);
+        _origin_data = _data = nullptr;
         _n_left = 0;
         _fd = -1;
     }
@@ -301,6 +304,7 @@ int Http::parseHttp(int fd, char* buff, size_t len) {
     // ret代表解析的数据长度
     int ret =  _parseHttpHeader(buff, len);
     int flag = 0;
+    // printf("head parse end\n");
     if (ret < 0) {
         switch (ret)
         {
@@ -426,7 +430,9 @@ int Http::send_file(int fd, std::string& file_type, std::string& connection) {
         send_header(fd, file_type, connection, flength);
 
         // 再将响应写入发送缓冲区，并发送
+        printf("send file\n");
         _data = buffer;
+        _origin_data = buffer;
         _n_left = flength;
         _fd = fd;
         // ret = writen(fd, buffer, flength);       
@@ -458,6 +464,7 @@ int Http::send_data() {
         _n_left -= nwrite;
         _data += nwrite;
     }
+    // printf("send data\n");
     if (_n_left == 0 && _keep_alive) {
         // 如果是长链接需要清除状态机的状态
         _clear_state();

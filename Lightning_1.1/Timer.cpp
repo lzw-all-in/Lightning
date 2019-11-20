@@ -32,10 +32,6 @@ void Data::separateTimer() {
     }
 }
 
-void Data::_printf() {
-    printf("I'm alive \n");
-}
-
 int Data::parseHttp(char* buff, size_t len) {
     return _myHttp->parseHttp(_fd, buff, len);
 }
@@ -44,9 +40,9 @@ int Data::send_data() {
     return _myHttp->send_data();
 }
 
-void Data::do_error(char *errnum, char *reason) {
-    return _myHttp->do_error(_fd, errnum, reason);
-}
+// void Data::do_error(char *errnum, char *reason) {
+//     return _myHttp->do_error(_fd, errnum, reason);
+// }
 
 std::string& Data::getMethod() {
     return _myHttp->getMethod();

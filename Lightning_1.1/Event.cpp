@@ -15,8 +15,8 @@ Event::Event(std::string& root, int listenfd, int threadnum, int maxEvents)
     // 创建epoll fd
     _epoll_create(0);
     // 初始化需要的数据
-    data_ptr = nullptr;
-    listen_data = new Data(listenfd);
+    _data_ptr = nullptr;
+    _listen_data = new Data(listenfd);
     bzero(&_clientaddr, sizeof(_clientaddr));
     _clientlen = sizeof(_clientaddr);
     _events = (epoll_event*)malloc(sizeof(epoll_event) * _maxEvents);
@@ -32,8 +32,8 @@ Event::~Event()
     if (_events != nullptr) {
         free(_events);
     }
-    if (listen_data != nullptr) {
-        delete listen_data;
+    if (_listen_data != nullptr) {
+        delete _listen_data;
     }
 
     pthread_mutex_lock(&sr_lock);
@@ -84,14 +84,13 @@ void Event::modEvent(Data* ptr, uint32_t flags) {
     }
 }
 
-// 目前还是有线程安全的问题
 void Event::deleteEvent(Data* ptr, uint32_t flags) {
     epoll_event _event;
     _event.data.ptr = static_cast<void*>(ptr);
     _event.events = flags;
     if (epoll_ctl(_epfd, EPOLL_CTL_DEL, ptr->_fd, &_event) < 0) {
         fprintf(stderr, "%s\n", strerror(errno));
-        error_msg("mod Event\n");
+        error_msg("delete Event\n");
     }
 }
 
@@ -117,17 +116,20 @@ void* Event::_send_data_worker(void*) {
         pthread_mutex_unlock(&sr_lock);
 
         ret = data->send_data();
-
+        // printf("data fd %d\n", data->_fd);
         if (ret > 0) {
             // 如果数据没有发送完毕，接着加入到链表的末尾
+            // printf("not send over push into list again\n");
             pthread_mutex_lock(&sr_lock);
             _subReactor_task.push_back(data);
             pthread_mutex_unlock(&sr_lock);
         }
         else if (ret == 0 && data->getConnection()) {
+            // printf("make a long connection\n");
+            // 数据发送完毕并且，是长链接的情况下，重新加入小根堆
             Timer* timer = new Timer(data);
-            timer_queue.push(timer);
             pthread_mutex_lock(&tq_lock);
+            timer_queue.push(timer);
             data->addTimer(timer);
             pthread_mutex_unlock(&tq_lock);
             printf("modEven fd %d\n", data->_fd);
@@ -143,7 +145,6 @@ void* Event::_send_data_worker(void*) {
     return NULL;
 }
 
-// 如果使用线程池到时候直接使用函数指针指过来就好了
 int Event::_finish_events(Data* data) {
     pthread_t id = pthread_self();
     printf("thread id %08x start a task on fd %d\n", id, data->_fd);
@@ -196,6 +197,7 @@ int Event::_finish_events(Data* data) {
                     pthread_mutex_unlock(&sr_lock);
                 }
                 else {
+                    // 程序进入关闭状态，不需要再加入事件
                     deleteEvent(data, EPOLLIN | EPOLLET | EPOLLONESHOT);
                     delete data;
                 }
@@ -217,9 +219,9 @@ void Event::_handle_events(int num) {
 
     for (int i = 0; i < num; ++i) {
         
-        data_ptr = static_cast<Data*>(_events[i].data.ptr);
-        if (data_ptr->_fd == listen_data->_fd) {
-            if ((_clientfd = accept(listen_data->_fd, (sockaddr*)&_clientaddr, &_clientlen)) < 0) {
+        _data_ptr = static_cast<Data*>(_events[i].data.ptr);
+        if (_data_ptr->_fd == _listen_data->_fd) {
+            if ((_clientfd = accept(_listen_data->_fd, (sockaddr*)&_clientaddr, &_clientlen)) < 0) {
                 error_msg("accept new client\n");
                 continue;
             }
@@ -236,20 +238,19 @@ void Event::_handle_events(int num) {
             client_data->addTimer(timer);
             // 设置oneshot防止在多线程+线程池模式下，同时有2个线程服务该客户
             // 这样每次线程服务客户时不需要先将其删除掉, 线程池情况下需要进行设定
-            // printf("addEvent fd %d\n", _clientfd);
             addEvent(client_data, EPOLLIN | EPOLLET | EPOLLONESHOT);
             pthread_mutex_unlock(&tq_lock);
             // 输出调试信息
-            // inet_ntop(AF_INET, &_clientaddr, _ip_addr, sizeof(_ip_addr));
-            // printf("a new client come in port is %d ip is %s fd is %d\n", 
-            //         _clientaddr.sin_port,
-            //         _ip_addr,
-            //         _clientfd);
+            inet_ntop(AF_INET, &_clientaddr, _ip_addr, sizeof(_ip_addr));
+            printf("a new client come in port is %d ip is %s fd is %d\n", 
+                    _clientaddr.sin_port,
+                    _ip_addr,
+                    _clientfd);
         }
         else {
             // 先分离定时器
             pthread_mutex_lock(&tq_lock);
-            data_ptr->separateTimer();
+            _data_ptr->separateTimer();
             pthread_mutex_unlock(&tq_lock);
             // 排除错误事件
             if ((_events[i].events & EPOLLERR) || 
@@ -257,10 +258,10 @@ void Event::_handle_events(int num) {
                 !(_events[i].events & EPOLLIN)) {
                 // EPOLLHUP代表对方已经关闭连接
                 error_msg("EPOLLERR or EPOLLHUP at another side\n");
-                delete data_ptr;
+                delete _data_ptr;
                 continue;
             }
-            _threadpool.add_task(_finish_events, data_ptr);
+            _threadpool.add_task(_finish_events, _data_ptr);
         }
     }
 }
@@ -286,7 +287,7 @@ void Event::_handle_out_of_time() {
 void Event::eventLoop() {
 
     // 对于监听套接字我希望它默认水平触发
-    addEvent(listen_data, EPOLLIN);
+    addEvent(_listen_data, EPOLLIN);
     int n;
     while (true) {
         n = _epoll_wait(-1);

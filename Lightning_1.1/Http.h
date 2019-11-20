@@ -8,7 +8,6 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <iostream>
-// #include <memory>
 #include "Util.h"
 
 #define BUFF_SIZE 2048
@@ -50,11 +49,7 @@ class Http
 {
 private:
     /* data */
-    static pthread_mutex_t timer_lock;
     std::string _root;
-    static std::unordered_map<std::string, std::string> mime;
-    // static std::unordered_set<std::string> implemented_method;
-    static std::unordered_set<std::string> supported_version;
     std::unordered_map<std::string, std::string> _key_value;
     std::string _method;
     std::string _path;
@@ -62,15 +57,18 @@ private:
     std::string _version;
     bool _keep_alive;
     char* _data;
+    char* _origin_data;
     size_t _n_left;
     int _fd;
-    
+    HTTP_PARSE_STATE _state;
     int _parseHttpHeader(char* buff, size_t len);
     std::string _getfile_type();
     void _modify_path();
     void _clear_state();
 public:
-    HTTP_PARSE_STATE _state;
+    static pthread_mutex_t timer_lock;  
+    static std::unordered_map<std::string, std::string> mime;  
+    static std::unordered_set<std::string> supported_version;
     int send_data();
     int parseHttp(int fd, char* buff, size_t len);
     void do_error(int fd, std::string errnum, std::string reason);

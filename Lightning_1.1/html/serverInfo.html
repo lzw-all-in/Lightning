@@ -61,7 +61,7 @@
 
     <h3 id="margin">4. Reactor pattern module </h3>
     <p id="margin">Acutlly ThreadPool is a part of the Reactor pattern. The Reactor pattern means we have one main thread using multiplex IO to listen to new coming events 
-        and old requests. Every time if a new event come in we register a read event in multiplex IO and if old events 
+        and old requests. Every time if a new event come in we register a read or write event in multiplex IO or if old events 
         come in we just dispatch them to the handler. In our situation the handler is a thread in ThreadPool.
     </p>
     <img src="http://129.211.28.16:8002/Lightening_img/reactor.png"; height="500"; width="750"; id = "margin_pic">  </img>
@@ -72,7 +72,16 @@
         in O(logN) time complexity and add a timer just in O(1) time complexity. Note: We don't need to check the heap in a for loop to see whether 
         there is a invalid event or not.
     </p>
-    <br> 
+    <br>
+    <h2 id="margin">Version 1.1</h2>
+
+    <h3 id="margin">1.The improved reactor pattern module </h3>
+    <p id="margin"> Because the speed of sending image data is too slow and I will impact the Server response time, I create a subReactor to deal 
+        with sending image data to a client. As shown in the picture below:
+        <img src="http://129.211.28.16:8002/Lightening_img/reactor1.1.png"; height="500"; width="750"; id = "margin_pic">  </img>
+    </p>
+
+    <br>
     <h2 id="margin">Problems and Solutions</h2>
     <h3 id="margin">1. Segmentation fault when sending a picture</h3>
     <p id="margin">This because I allocate stack memory to file buffer and the stack memory have a limitation around 1Mbytes->2Mbytes. If we
@@ -87,7 +96,7 @@
         This because Google web browser don't request the icon everytime. When it accesses a webpage at the first time, it will request for the icon and store it locally.
     When it accesses the webpage at multiply times it won't to request for the icon unless you clean up the cache. </p>
     
-
+    
     <center>
         <br>
         <a href="http://129.211.28.16:8002/">Home</a> 
